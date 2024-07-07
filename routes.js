@@ -112,10 +112,32 @@ router.post("/login", async (req, res) => {
     res.status(200).send({
       id: user._id,
       username: user.username,
+      isAdmin: user.isAdmin,
       accessToken: token,
     });
   } catch (err) {
     res.status(500).send({ message: err.message });
+  }
+});
+
+router.get("/user/info", auth.verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    res.status(200).json({
+      id: user._id,
+      username: user.username,
+      isAdmin: user.isAdmin,
+    });
+  } catch (err) {
+    console.error("Error fetching user info:", err);
+    res.status(500).json({ message: "Failed to fetch user info." });
   }
 });
 
@@ -176,17 +198,7 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
     const bookingEnd = new Date(currentDateString);
     bookingEnd.setHours(endHour, endMinute, endSecond);
 
-    if (bookingStart.getDate() !== now.getDate()) {
-      return res.status(400).json({
-        message: "Peminjaman hanya bisa dilakukan pada hari yang sama.",
-      });
-    }
-
-    const expiredAt = new Date(bookingEnd);
-    expiredAt.setMinutes(expiredAt.getMinutes() + 1);
-
     const existingRoom = await ListRoom.findOne({ namatempat });
-
     if (!existingRoom) {
       return res.status(404).json({ message: "Ruangan tidak ditemukan." });
     }
@@ -217,6 +229,9 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
       });
     }
 
+    const expiredAt = new Date(bookingEnd);
+    expiredAt.setMinutes(expiredAt.getMinutes() + 1);
+
     const newBooking = new Booking({
       namatempat,
       nama,
@@ -242,6 +257,8 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
     });
   }
 });
+
+
 
 // Semua peminjaman user
 router.get("/my-bookings", auth.verifyToken, async (req, res) => {
@@ -366,10 +383,7 @@ router.get("/list-rooms", async (req, res) => {
     let roomStatuses = rooms.map(async (room) => {
       const booking = await Booking.findOne({
         namatempat: room.namatempat,
-        $or: [
-          { status: "Pending" },
-          { status: "Accepted" }
-        ]
+        $or: [{ status: "Pending" }, { status: "Accepted" }],
       });
 
       if (booking) {
@@ -380,7 +394,7 @@ router.get("/list-rooms", async (req, res) => {
       } else {
         return {
           namatempat: room.namatempat,
-          status: "Available",
+          status: "Avaliable",
         };
       }
     });
@@ -397,33 +411,31 @@ router.get("/list-rooms", async (req, res) => {
 });
 
 
-// Mengubah status peminjaman yang sudah expired menjadi "Available"
-cron.schedule("* * * * *", async () => {
+const updateExpiredBookings = async () => {
   try {
-    const now = new Date();
-    const expiredPendingAcceptedBookings = await Booking.find({
+    const now = getJakartaTime();
+    const expiredBookings = await Booking.find({
       $or: [
-        { status: "Pending", expiredAt: { $lte: now } },
-        { status: "Accepted", expiredAt: { $lte: now } },
-        { status: "Rejected" },
+        { status: "Accepted" },
+        { status: "Rejected" }
       ],
+      "jam_peminjaman.end": { $lte: now },
+     
     });
 
-    await Promise.all(
-      expiredPendingAcceptedBookings.map(async (booking) => {
-        if (booking.status !== "Rejected") {
-          booking.status = "Available";
-        }
-        await booking.save();
-      })
-    );
+    await Promise.all(expiredBookings.map(async (booking) => {
+      booking.status = "Avaliable";
+      await booking.save();
+    }));
 
-    console.log(
-      "Expired bookings processed:",
-      expiredPendingAcceptedBookings.length
-    );
+    console.log(`Updated ${expiredBookings.length} expired bookings.`);
   } catch (err) {
-    console.error("Error processing expired bookings:", err);
+    console.error("Error updating expired bookings:", err);
   }
-});
+};
+
+
+cron.schedule("* * * * *", updateExpiredBookings);
+
+
 export default router;

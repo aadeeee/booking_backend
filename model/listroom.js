@@ -8,8 +8,8 @@ const listRoomSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Accepted", "Rejected", "Pending", 'Available'],
-    default: "Available",
+    enum: ["Accepted", "Rejected", "Pending", 'Avaliable'],
+    default: "Avaliable",
   },
 });
 
