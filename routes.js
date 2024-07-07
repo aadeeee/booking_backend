@@ -120,6 +120,40 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/reset-password", async (req, res) => {
+  const { username, newPassword } = req.body;
+
+  if (!username || !newPassword) {
+    return res
+      .status(400)
+      .send({ message: "Username and new password are required" });
+  }
+
+  try {
+    const user = await User.findOne({ username });
+
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 8);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    res.send({ message: "Password was reset successfully!" });
+  } catch (err) {
+    res
+      .status(500)
+      .send({
+        message:
+          err.message || "Some error occurred while resetting the password",
+      });
+  }
+});
+
+//Booking
+
 router.get("/user/info", auth.verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
@@ -257,8 +291,6 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
     });
   }
 });
-
-
 
 // Semua peminjaman user
 router.get("/my-bookings", auth.verifyToken, async (req, res) => {
@@ -410,23 +442,20 @@ router.get("/list-rooms", async (req, res) => {
   }
 });
 
-
 const updateExpiredBookings = async () => {
   try {
     const now = getJakartaTime();
     const expiredBookings = await Booking.find({
-      $or: [
-        { status: "Accepted" },
-        { status: "Rejected" }
-      ],
+      $or: [{ status: "Accepted" }, { status: "Rejected" }],
       "jam_peminjaman.end": { $lte: now },
-     
     });
 
-    await Promise.all(expiredBookings.map(async (booking) => {
-      booking.status = "Avaliable";
-      await booking.save();
-    }));
+    await Promise.all(
+      expiredBookings.map(async (booking) => {
+        booking.status = "Avaliable";
+        await booking.save();
+      })
+    );
 
     console.log(`Updated ${expiredBookings.length} expired bookings.`);
   } catch (err) {
@@ -434,8 +463,6 @@ const updateExpiredBookings = async () => {
   }
 };
 
-
 cron.schedule("* * * * *", updateExpiredBookings);
-
 
 export default router;
