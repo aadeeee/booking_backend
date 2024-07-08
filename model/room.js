@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const timeFormatValidator = (value) => {
   return /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.test(value);
 };
+
 const bookingSchema = new mongoose.Schema(
   {
     namatempat: { type: String, required: true, index: true },
@@ -28,7 +29,7 @@ const bookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Accepted", "Rejected", "Pending", 'Avaliable'],
+      enum: ["Accepted", "Rejected", "Pending", "Avaliable"],
       default: "Pending",
     },
     expiredAt: { type: Date },
@@ -41,7 +42,6 @@ const bookingSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 const Booking = mongoose.model("Booking", bookingSchema);
 export default Booking;

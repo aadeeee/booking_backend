@@ -412,26 +412,28 @@ router.get("/list-rooms", async (req, res) => {
   try {
     const rooms = await ListRoom.find({}, "namatempat");
 
-    let roomStatuses = rooms.map(async (room) => {
-      const booking = await Booking.findOne({
+    const roomStatuses = await Promise.all(rooms.map(async (room) => {
+      const now = getJakartaTime();
+      const activeBooking = await Booking.findOne({
         namatempat: room.namatempat,
-        $or: [{ status: "Pending" }, { status: "Accepted" }],
+        $or: [
+          { status: "Pending" },
+          { status: "Accepted", expiredAt: { $gte: now } }
+        ],
       });
 
-      if (booking) {
+      if (activeBooking) {
         return {
           namatempat: room.namatempat,
-          status: booking.status,
+          status: activeBooking.status,
         };
       } else {
         return {
           namatempat: room.namatempat,
-          status: "Avaliable",
+          status: "Avaliable", 
         };
       }
-    });
-
-    roomStatuses = await Promise.all(roomStatuses);
+    }));
 
     res.status(200).json(roomStatuses);
   } catch (err) {
@@ -442,18 +444,28 @@ router.get("/list-rooms", async (req, res) => {
   }
 });
 
+
+
 const updateExpiredBookings = async () => {
   try {
     const now = getJakartaTime();
+    console.log(`Current time: ${now}`);
+
     const expiredBookings = await Booking.find({
-      $or: [{ status: "Accepted" }, { status: "Rejected" }],
+      status: { $in: ["Accepted", "Rejected"] },
       "jam_peminjaman.end": { $lte: now },
     });
 
+    console.log(`Found ${expiredBookings.length} expired bookings`);
+
     await Promise.all(
       expiredBookings.map(async (booking) => {
-        booking.status = "Avaliable";
-        await booking.save();
+        const listRoom = await ListRoom.findById(booking.room);
+        if (listRoom) {
+          listRoom.status = "Avaliable";
+          await listRoom.save();
+        }
+        console.log(`Updated room status for booking: ${booking._id}, room: ${listRoom._id} status: ${listRoom.status}`);
       })
     );
 
