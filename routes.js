@@ -184,7 +184,21 @@ router.post("/add-room", async (req, res) => {
     "Ruang Serbaguna B",
     "Kelas TK A",
     "Kelas TK B",
-    "lapangan",
+    "Kelas SD A",
+    "Kelas SD B",
+    "Kelas SD C",
+    "Kelas SD D",
+    "Kelas SD E",
+    "Kelas SD F",
+    "Kelas SMP A",
+    "Kelas SMP B",
+    "Kelas SMP C",
+    "Kelas SMA A",
+    "Kelas SMA B",
+    "Kelas SMA C",
+    "Kelas SMK A",
+    "Kelas SMK B",
+    "Kelas SMK C",
   ];
 
   try {
@@ -215,16 +229,37 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
     return res.status(400).json({ message: "Path 'namatempat' is required." });
   }
 
+  const operationalHours = {
+    "Kelas TK A": { start: "07:00:00", end: "11:00:00" },
+    "Kelas TK B": { start: "07:00:00", end: "11:00:00" },
+    "Kelas SD A": { start: "07:00:00", end: "13:00:00" },
+    "Kelas SD B": { start: "07:00:00", end: "13:00:00" },
+    "Kelas SD C": { start: "07:00:00", end: "13:00:00" },
+    "Kelas SD D": { start: "07:00:00", end: "13:00:00" },
+    "Kelas SD E": { start: "07:00:00", end: "13:00:00" },
+    "Kelas SD F": { start: "07:00:00", end: "13:00:00" },
+    "Kelas SMP A": { start: "07:00:00", end: "14:00:00" },
+    "Kelas SMP B": { start: "07:00:00", end: "14:00:00" },
+    "Kelas SMP C": { start: "07:00:00", end: "14:00:00" },
+    "Kelas SMA A": { start: "07:00:00", end: "15:00:00" },
+    "Kelas SMA B": { start: "07:00:00", end: "15:00:00" },
+    "Kelas SMA C": { start: "07:00:00", end: "15:00:00" },
+    "Kelas SMK A": { start: "07:00:00", end: "15:00:00" },
+    "Kelas SMK B": { start: "07:00:00", end: "15:00:00" },
+    "Kelas SMK C": { start: "07:00:00", end: "15:00:00" },
+    "Lapangan Olahraga": { start: "07:00:00", end: jam_peminjaman.end },
+    "Lapangan Upacara": { sstart: "07:00:00", end: jam_peminjaman.end },
+    "Auditorium": { start: "07:00:00", end: jam_peminjaman.end },
+    "Ruang Serbaguna A": { start: "07:00:00", end: jam_peminjaman.end },
+    "Ruang Serbaguna B": { start: "07:00:00", end: jam_peminjaman.end },
+  };
+
   try {
     const now = getJakartaTime();
     const currentDateString = now.toISOString().split("T")[0];
 
-    const [startHour, startMinute, startSecond] = jam_peminjaman.start
-      .split(":")
-      .map(Number);
-    const [endHour, endMinute, endSecond] = jam_peminjaman.end
-      .split(":")
-      .map(Number);
+    const [startHour, startMinute, startSecond] = jam_peminjaman.start.split(":").map(Number);
+    const [endHour, endMinute, endSecond] = jam_peminjaman.end.split(":").map(Number);
 
     const bookingStart = new Date(currentDateString);
     bookingStart.setHours(startHour, startMinute, startSecond);
@@ -235,6 +270,27 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
     const existingRoom = await ListRoom.findOne({ namatempat });
     if (!existingRoom) {
       return res.status(404).json({ message: "Ruangan tidak ditemukan." });
+    }
+
+    // Check if the booking time is within operational hours
+    const roomHours = operationalHours[namatempat];
+    if (!roomHours) {
+      return res.status(400).json({ message: "Operational hours for the room are not defined." });
+    }
+
+    const [opStartHour, opStartMinute, opStartSecond] = roomHours.start.split(":").map(Number);
+    const [opEndHour, opEndMinute, opEndSecond] = roomHours.end.split(":").map(Number);
+
+    const opStartTime = new Date(currentDateString);
+    opStartTime.setHours(opStartHour, opStartMinute, opStartSecond);
+
+    const opEndTime = new Date(currentDateString);
+    opEndTime.setHours(opEndHour, opEndMinute, opEndSecond);
+
+    if (bookingStart < opStartTime || bookingEnd > opEndTime) {
+      return res.status(400).json({
+        message: "Peminjaman ruangan di luar jam operasional.",
+      });
     }
 
     const isRoomAvailable = await Booking.findOne({
@@ -291,6 +347,7 @@ router.post("/book-room", auth.verifyToken, async (req, res) => {
     });
   }
 });
+
 
 // Semua peminjaman user
 router.get("/my-bookings", auth.verifyToken, async (req, res) => {
